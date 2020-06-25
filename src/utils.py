@@ -18,4 +18,10 @@ def simulate_generations(length, vg0, c, a, b, p, ve):
     for i in range(2, length+2):
         compute_generation(i, vg, vy, m, c, a, b, p, ve)
     h2 = [(a@vg[i]@a.T).item()/vy[i] for i in range(2,length+2)]
-    return vg[2:], vy[2:], m[2:], h2
+
+    sib_corr = [(a@(vg[i-1]+m[i-1])@a.T/2+
+                a@(vg[i-1]+m[i-1])@b.T+
+                b@(vg[i-1]+m[i-1])@a.T+
+                b@(vg[i-1]+m[i-1])@b.T*2).item()/vy[i]
+         for i in range(2,length+2)]
+    return vg[2:], vy[2:], m[2:], h2, sib_corr
