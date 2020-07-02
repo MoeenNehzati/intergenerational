@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 from numpy import sqrt 
 
-def simulate(pop_size, length, number_of_the_genes, causal_genes, mu, a, vg0, p, ve, latest_mem, force_p=True):
+def simulate(pop_size, length, number_of_the_genes, causal_genes, a, b, vg0, p, ve, latest_mem, force_p=True):
     f = 0
     for i in np.roots([2, -2, vg0[0, 0]]):
         if 0 < i <= 0.5:
@@ -118,8 +118,8 @@ def simulate(pop_size, length, number_of_the_genes, causal_genes, mu, a, vg0, p,
         female_mother_ranks[i] = np.array([sorted_to_initial_ranks_female[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         
     
-        male_phenotypes[i] = a@males[i] + mu*a@(np.hstack((son_fathers, son_fathers)) + np.hstack((son_mothers, son_mothers))) + np.random. normal(0, sqrt(ve), (1, pop_size//2))
-        female_phenotypes[i] = a@females[i] + mu*a@(np.hstack((daughter_fathers, daughter_fathers)) + np.hstack((daughter_mothers,  daughter_mothers))) + np.random.normal(0, sqrt(ve), (1, pop_size//2))
+        male_phenotypes[i] = a@males[i] + b@(np.hstack((son_fathers, son_fathers)) + np.hstack((son_mothers, son_mothers))) + np.random. normal(0, sqrt(ve), (1, pop_size//2))
+        female_phenotypes[i] = a@females[i] + b@(np.hstack((daughter_fathers, daughter_fathers)) + np.hstack((daughter_mothers,  daughter_mothers))) + np.random.normal(0, sqrt(ve), (1, pop_size//2))
         vy[i] = np.var(np.hstack((male_phenotypes[i][0], female_phenotypes[i][0])))
     
     return {"vy":vy, 
