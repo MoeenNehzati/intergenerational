@@ -2,7 +2,20 @@ import numpy as np
 from tqdm import tqdm
 from numpy import sqrt 
 
-def simulate(pop_size, length, number_of_the_genes, causal_genes, a, b, vg0, p, ve, latest_mem, force_p=True):
+def simulate(pop_size,
+            length,
+            number_of_the_genes,
+            causal_genes,
+            a,
+            b,
+            vg0,
+            p,
+            ve,
+            latest_mem,
+            statistics_function = None,
+            statistics = {},
+            force_p=True,            
+            ):
     f = 0
     for i in np.roots([2, -2, vg0[0, 0]]):
         if 0 < i <= 0.5:
@@ -34,23 +47,23 @@ def simulate(pop_size, length, number_of_the_genes, causal_genes, a, b, vg0, p, 
     male_phenotypes[0] = a@males[0] + np.random.normal(0, sqrt(ve), (1, pop_size//2))
     female_phenotypes[0] = a@females[0] + np.random.normal(0, sqrt(ve), (1, pop_size//2))
     vy[0] = np.var(np.hstack((male_phenotypes[0][0], female_phenotypes[0][0])))
+    data = {
+            "males":males,
+            "females":females,
+            "female_father_ranks":female_father_ranks,
+            "female_mother_ranks":female_mother_ranks,
+            "male_father_ranks":male_father_ranks,
+            "male_mother_ranks":male_mother_ranks,
+            "male_phenotypes":male_phenotypes,
+            "female_phenotypes":female_phenotypes,
+            "a":a,
+            "b":b,
+        }
     
     for i in tqdm(range(1, length)):
         if i >= latest_mem:
             males[i-latest_mem] = None
             females[i-latest_mem] = None
-            female_father_ranks[i-latest_mem] = None
-            female_mother_ranks[i-latest_mem] = None
-            male_father_ranks[i-latest_mem] = None
-            male_mother_ranks[i-latest_mem] = None
-            male_phenotypes[i-latest_mem] = None
-            female_phenotypes[i-latest_mem] = None
-            vy[i-latest_mem] = None
-            corrs[i-latest_mem] = None
-            corrs_original[i-latest_mem] = None
-            corrs_inbreeding[i-latest_mem] = None
-            corrs_causal[i-latest_mem] = None
-            deltas[i-latest_mem] = None
 
         delta = 0.9
         dif = 1
@@ -67,6 +80,7 @@ def simulate(pop_size, length, number_of_the_genes, causal_genes, a, b, vg0, p, 
             father_phenotype_sorted = father_phenotype[0][np.argsort(noisy_father_phenotype)]
             mother_phenotype_sorted = mother_phenotype[0][np.argsort(noisy_mother_phenotype)]
             temp_cor = np.corrcoef(father_phenotype_sorted, mother_phenotype_sorted)
+            print(temp_cor)
             dif = temp_cor[0,1]-p
             if delta == 1:
                 corrs_original[i] = temp_cor
@@ -117,7 +131,8 @@ def simulate(pop_size, length, number_of_the_genes, causal_genes, a, b, vg0, p, 
         female_father_ranks[i] = np.array([sorted_to_initial_ranks_male[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         female_mother_ranks[i] = np.array([sorted_to_initial_ranks_female[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         
-    
+        if statistics_function is not None:
+            statistics_function(i, data, statistics)
         male_phenotypes[i] = a@males[i] + b@(np.hstack((son_fathers, son_fathers)) + np.hstack((son_mothers, son_mothers))) + np.random. normal(0, sqrt(ve), (1, pop_size//2))
         female_phenotypes[i] = a@females[i] + b@(np.hstack((daughter_fathers, daughter_fathers)) + np.hstack((daughter_mothers,  daughter_mothers))) + np.random.normal(0, sqrt(ve), (1, pop_size//2))
         vy[i] = np.var(np.hstack((male_phenotypes[i][0], female_phenotypes[i][0])))
