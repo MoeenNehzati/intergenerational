@@ -9,19 +9,22 @@ def compute_generation(index, vg, vy, m, c, a, b, p, ve):
 
 
 def simulate_generations(length, vg0, c, a, b, p, ve):  
-    vg = [0 for i in range(length+2)]
-    vy = [0 for i in range(length+2)]
-    m = [np.zeros(vg0.shape) for i in range(length+2)]
+    # vg = [0 for i in range(length+2)]
+    vg = np.zeros((length+2, vg0.shape[0], vg0.shape[1]))
+    vy = np.zeros(length+2) #np.array([0. for i in range(length+2)])
+    # vy = [0. for i in range(length+2)]
+    # m = [np.zeros(vg0.shape) for i in range(length+2)]
+    m = np.zeros((length+2, vg0.shape[0], vg0.shape[1]))
     vg[0] = vg0
     vg[1] = vg0
     #sure about that?
     for i in range(2, length+2):
         compute_generation(i, vg, vy, m, c, a, b, p, ve)
-    h2 = [(a@vg[i]@a.T).item()/vy[i] for i in range(2,length+2)]
+    h2 = np.array([(a@vg[i]@a.T).item()/vy[i] for i in range(2,length+2)])
 
-    sib_corr = [(a@(vg[i-1]+m[i-1])@a.T/2+
+    sib_corr = np.array([(a@(vg[i-1]+m[i-1])@a.T/2+
                 a@(vg[i-1]+m[i-1])@b.T+
                 b@(vg[i-1]+m[i-1])@a.T+
                 b@(vg[i-1]+m[i-1])@b.T*2).item()/vy[i]
-         for i in range(2,length+2)]
+         for i in range(2,length+2)])
     return vg[2:], vy[2:], m[2:], h2, sib_corr
