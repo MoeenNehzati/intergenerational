@@ -173,20 +173,23 @@ def simulate(length,
     males = [None]*length
     females = [None]*length
     
-    female_father_ranks = np.empty((length, pop_size//2))
-    female_father_ranks[:] = np.nan
-    female_mother_ranks = np.empty((length, pop_size//2))
-    female_mother_ranks[:] = np.nan
-    male_father_ranks = np.empty((length, pop_size//2))
-    male_father_ranks[:] = np.nan
-    male_mother_ranks = np.empty((length, pop_size//2))
-    male_mother_ranks[:] = np.nan
-
+    female_father_ranks = np.zeros((length, pop_size//2)).astype(int)
+    female_mother_ranks = np.zeros((length, pop_size//2)).astype(int)
+    male_father_ranks = np.zeros((length, pop_size//2)).astype(int)
+    male_mother_ranks = np.zeros((length, pop_size//2)).astype(int)
     male_phenotypes = np.array([[None]*(pop_size//2)]*length, dtype=float)
     female_phenotypes = np.array([[None]*(pop_size//2)]*length, dtype=float)
+    male_direct = np.array([[None]*(pop_size//2)]*length, dtype=float)
+    male_indirect = np.array([[None]*(pop_size//2)]*length, dtype=float)
+    female_direct = np.array([[None]*(pop_size//2)]*length, dtype=float)
+    female_indirect = np.array([[None]*(pop_size//2)]*length, dtype=float)
+    cov_parental_direct = np.array([None]*length, dtype=float)
+    cov_parental_indirect = np.array([None]*length, dtype=float)
+    cov_parental_direct_indirect = np.array([None]*length, dtype=float)
     vy = np.array([None]*length, dtype=float)
     v_direct = np.array([None]*length, dtype=float)
     v_indirect = np.array([None]*length, dtype=float)
+    cov_direct_indirect = np.array([None]*length, dtype=float)
     heritablity = np.array([None]*length, dtype=float)
     corrs = np.array([None]*length, dtype=float)
     corrs_original = np.array([None]*length, dtype=float)
@@ -281,22 +284,26 @@ def simulate(length,
         
         if statistics_function is not None:
             statistics_function(i, data, statistics)
-        
-        male_direct = a@np.sum(males[i],2)
-        male_indirect = b@(np.sum(np.hstack((son_fathers, son_fathers)), 2) + np.sum(np.hstack((son_mothers, son_mothers)), 2))
-        female_direct = a@np.sum(females[i],2)
-        female_indirect = b@(np.sum(np.hstack((daughter_fathers, daughter_fathers)), 2) + np.sum(np.hstack((daughter_mothers,  daughter_mothers)), 2))
+        male_direct[i, :] = a@np.sum(males[i],2)
+        male_indirect[i, :] = b@(np.sum(np.hstack((son_fathers, son_fathers)), 2) + np.sum(np.hstack((son_mothers, son_mothers)), 2))
+        female_direct[i, :] = a@np.sum(females[i],2)
+        female_indirect[i, :] = b@(np.sum(np.hstack((daughter_fathers, daughter_fathers)), 2) + np.sum(np.hstack((daughter_mothers,  daughter_mothers)), 2))
+        male_phenotypes[i, :] = male_direct[i, :] + male_indirect[i, :] + np.random. normal(0, sqrt(ve), (1, pop_size//2))
+        female_phenotypes[i, :] = female_direct[i, :] + female_indirect[i, :] + np.random.normal(0, sqrt(ve), (1, pop_size//2))
 
-        male_phenotypes[i, :] = male_direct + male_indirect + np.random. normal(0, sqrt(ve), (1, pop_size//2))
-        female_phenotypes[i, :] = female_direct + female_indirect + np.random.normal(0, sqrt(ve), (1, pop_size//2))
         vy[i] = np.var(np.hstack((male_phenotypes[i, :], female_phenotypes[i, :])))
-        v_direct[i] = np.var(np.hstack((male_direct, female_direct)))
-        v_indirect[i] = np.var(np.hstack((male_indirect, female_indirect)))
+        direct_indirect_cov_mat = np.cov(np.hstack((male_direct[i, :], female_direct[i, :])).flatten(), np.hstack((male_indirect[i, :], female_indirect[i, :])).flatten())        
+        v_direct[i] = direct_indirect_cov_mat[0,0]
+        v_indirect[i] = direct_indirect_cov_mat[1,1]
+        cov_direct_indirect[i] = direct_indirect_cov_mat[0, 1]
         heritablity[i] = v_direct[i]/vy[i]
-        # print("FFF")
-        # qwe = np.mean(np.sum(males[i], 2), axis=1)
-        # print(qwe)
-        # print(qwe.shape)
+        father_direct = np.hstack((male_direct[i-1, female_father_ranks[i]], male_direct[i-1, male_father_ranks[i]]))
+        mother_direct = np.hstack((female_direct[i-1, female_mother_ranks[i]], female_direct[i-1, male_mother_ranks[i]]))
+        father_indirect = np.hstack((male_indirect[i-1, female_father_ranks[i]], male_indirect[i-1, male_father_ranks[i]]))
+        mother_indirect = np.hstack((female_indirect[i-1, female_mother_ranks[i]], female_indirect[i-1, male_mother_ranks[i]]))
+        cov_parental_direct[i] = np.cov(father_direct, mother_direct)[0,1]
+        cov_parental_indirect[i] = np.cov(father_indirect, mother_direct)[0,1]
+        cov_parental_direct_indirect[i] = np.cov(np.hstack((father_direct, mother_direct)), np.hstack((mother_indirect, father_indirect)))[0,1]
 
     
     return {"vy":vy, 
@@ -305,6 +312,10 @@ def simulate(length,
             "corrs_inbreeding":corrs_inbreeding,
             "male_phenotypes":male_phenotypes,
             "female_phenotypes":female_phenotypes,
+            "male_direct":male_direct,
+            "male_indirect":male_indirect,
+            "female_direct":female_direct,
+            "female_indirect":female_indirect,
             "deltas":deltas,
             "males":np.array([gen.tolist() for gen in males if gen is not None]),
             "females":np.array([gen.tolist() for gen in females if gen is not None]),
@@ -314,5 +325,9 @@ def simulate(length,
             "male_mother_ranks": male_mother_ranks,
             "v_direct": v_direct,
             "v_indirect": v_indirect,
+            "cov_direct_indirect": cov_direct_indirect,
             "heritablity": heritablity,
+            "cov_parental_direct": cov_parental_direct,
+            "cov_parental_indirect": cov_parental_indirect,
+            "cov_parental_direct_indirect": cov_parental_direct_indirect,
         }
