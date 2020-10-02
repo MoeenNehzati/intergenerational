@@ -109,6 +109,7 @@ with Pool(processes) as pool:
 # import numpy as np
 # from tqdm import tqdm
 # from utils import simulate_generations
+# import os
 # addresses = [
 #     "outputs/from_chr1_to_chr23_start0_end50_run&_p0-0_ab_corr0-0_vb0-25.hdf5",
 #     "outputs/from_chr1_to_chr23_start0_end50_run&_p0-0_ab_corr0-0_vb0.hdf5",
@@ -120,7 +121,7 @@ with Pool(processes) as pool:
 #     "outputs/from_chr1_to_chr23_start0_end50_run&_p0-5_ab_corr1-0_vb0-25.hdf5",
 # ]
 # length = 30
-# runs=1
+# runs=10
 
 # plt.clf()
 # for address_widlcard in tqdm(addresses):
@@ -128,6 +129,10 @@ with Pool(processes) as pool:
 #     for i in range(runs):
 #         address = address_widlcard.replace("&", str(i))
 #         print(address)
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             ys[i, :] = np.nan
+#             continue
 #         with h5py.File(address, 'r') as hf:
 #             # name = address.split("/")[1].split(".")[0]
 #             vy = np.array(hf["vy"])
@@ -136,13 +141,15 @@ with Pool(processes) as pool:
 #             x = range(len(vy)-2)
 #             y = vy[2:]/vy[2]
 #             ys[i, :] = y
-#     y = np.mean(ys, 0)
+#     y = np.nanmean(ys, 0)
 #     plt.plot(x,y, label=f"vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-#     plt.title(f"Vy (normalized on the first gen) for {runs} runs")
-#     plt.legend()
-#     plt.xlabel("gen")
-#     plt.ylabel("normalized vy")
-#     plt.savefig(f"outputs/normalized_vy_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.title(f"Vy (normalized on the first gen) for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("normalized vy")
+# plt.savefig(f"outputs/normalized_vy_from_chr1_to_chr23_start0_end50_runs{runs}")
 
 
 
@@ -152,6 +159,10 @@ with Pool(processes) as pool:
 #     for i in range(runs):
 #         address = address_widlcard.replace("&", str(i))
 #         print(address)
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             ys[i, :] = np.nan
+#             continue
 #         with h5py.File(address, 'r') as hf:
 #             # name = address.split("/")[1].split(".")[0]
 #             h2 = np.array(hf["heritablity"])
@@ -160,13 +171,16 @@ with Pool(processes) as pool:
 #             x = range(len(vy)-2)
 #             y = h2[2:]/h2[2]
 #             ys[i, :] = y
-#     y = np.mean(ys, 0)
+#     y = np.nanmean(ys, 0)
 #     plt.plot(x,y, label=f"vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-#     plt.title(f"h2(normalized on the first gen) for {runs} runs")
-#     plt.legend()
-#     plt.xlabel("gen")
-#     plt.ylabel("normalized h2")
-#     plt.savefig(f"outputs/normalized_h2_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.title(f"h2(normalized on the first gen) for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("normalized h2")
+# plt.savefig(f"outputs/normalized_h2_from_chr1_to_chr23_start0_end50_runs{runs}")
+
 
 # plt.clf()
 # for address_widlcard in tqdm(addresses):
@@ -174,6 +188,10 @@ with Pool(processes) as pool:
 #     for i in range(runs):
 #         address = address_widlcard.replace("&", str(i))
 #         print(address)
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             ys[i, :] = np.nan
+#             continue
 #         with h5py.File(address, 'r') as hf:
 #             # name = address.split("/")[1].split(".")[0]
 #             h2 = np.array(hf["heritablity"])
@@ -182,13 +200,16 @@ with Pool(processes) as pool:
 #             x = range(len(vy)-2)
 #             y = h2[2:]
 #             ys[i, :] = y
-#     y = np.mean(ys, 0)
+#     y = np.nanmean(ys, 0)
 #     plt.plot(x,y, label=f"vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-#     plt.title(f"h2 for {runs} runs")
-#     plt.legend()
-#     plt.xlabel("gen")
-#     plt.ylabel("h2")
-#     plt.savefig(f"outputs/h2_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.title(f"h2 for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("h2")
+# plt.savefig(f"outputs/h2_from_chr1_to_chr23_start0_end50_runs{runs}")
+
 
 # plt.clf()
 # for address_widlcard in tqdm(addresses):
@@ -196,6 +217,10 @@ with Pool(processes) as pool:
 #     for i in range(runs):
 #         address = address_widlcard.replace("&", str(i))
 #         print(address)
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             ys[i, :] = np.nan
+#             continue
 #         with h5py.File(address, 'r') as hf:
 #             # name = address.split("/")[1].split(".")[0]
 #             vy = np.array(hf["vy"])
@@ -204,13 +229,113 @@ with Pool(processes) as pool:
 #             x = range(len(vy)-2)
 #             y = vy[2:]
 #             ys[i, :] = y
-#     y = np.mean(ys, 0)
+#     y = np.nanmean(ys, 0)
 #     plt.plot(x,y, label=f"vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-#     plt.title(f"Vy for {runs} runs")
-#     plt.legend()
-#     plt.xlabel("gen")
-#     plt.ylabel("Vy")
-#     plt.savefig(f"outputs/vy_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.title(f"Vy for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("Vy")
+# plt.savefig(f"outputs/vy_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.clf()
+# for address_widlcard in tqdm(addresses[4:]):
+#     sim = np.zeros((runs, length-2))
+#     expected = np.zeros((runs, length-2))
+#     for i in range(runs):
+#         address = address_widlcard.replace("&", str(i))
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             sim[i, :] = np.nan
+#             expected[i, :] = np.nan
+#             continue
+#         with h5py.File(address, 'r') as hf:
+#             vy = np.array(hf["vy"])
+#             vy_expected = np.array(hf["expected_vy"])            
+#             ve = np.array(hf["ve"])
+#             p = np.array(hf["p"])
+#             ab_cov = np.array(hf["ab_cov"])
+#             x = range(len(vy)-2)
+#             sim[i,:] = vy[2:]
+#             expected[i,:] = vy_expected[2:]
+#     sim_avg = np.nanmean(sim, 0)
+#     expected_avg = np.nanmean(expected, 0)
+#     plt.plot(x, sim_avg, label=f"simulation vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
+#     plt.plot(x, expected_avg, label=f" expected vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
+
+# plt.title(f"Average Vy from simulation and derivations for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("Vy")
+# plt.savefig(f"outputs/vy_expected_derivation_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+# plt.clf()
+# for address_widlcard in tqdm(addresses[4:]):
+#     sim = np.zeros((runs, length-2))
+#     expected = np.zeros((runs, length-2))
+#     for i in range(runs):
+#         address = address_widlcard.replace("&", str(i))
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             sim[i, :] = np.nan
+#             expected[i, :] = np.nan
+#             continue
+#         with h5py.File(address, 'r') as hf:
+#             h = np.array(hf["heritablity"])
+#             h_expected = np.array(hf["heritablity"])            
+#             ve = np.array(hf["ve"])
+#             p = np.array(hf["p"])
+#             ab_cov = np.array(hf["ab_cov"])
+#             x = range(len(vy)-2)
+#             sim[i,:] = h[2:]
+#             expected[i,:] = h_expected[2:]
+#     sim_avg = np.nanmean(sim, 0)
+#     expected_avg = np.nanmean(expected, 0)
+#     plt.plot(x, sim_avg, label=f"simulation vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
+#     plt.plot(x, expected_avg, label=f" expected vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
+
+# plt.title(f"Average h2 from simulation and derivations for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("Vy")
+# plt.savefig(f"outputs/h2_expected_derivation_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+
+
+# plt.clf()
+# for address_widlcard in tqdm(addresses):
+#     ys = np.zeros((runs, length-2))
+#     for i in range(runs):
+#         address = address_widlcard.replace("&", str(i))
+#         print(address)
+#         if not os.path.isfile(address):
+#             print(address, "pass")
+#             ys[i, :] = np.nan
+#             continue
+#         with h5py.File(address, 'r') as hf:
+#             # name = address.split("/")[1].split(".")[0]
+#             vy = np.array(hf["vy"])
+#             p = np.array(hf["p"])
+#             ab_cov = np.array(hf["ab_cov"])
+#             x = range(len(vy)-3)
+#             ys[i, :] = vy[2:]#(vy[3:]-vy[2:-1])/vy[2:-1]
+#     y = np.nanmean(ys, 0)
+#     y = y[1:]-y[:-1]
+#     plt.plot(x,y, label=f"vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
+
+
+# plt.title(f"Convergence speed for {runs} runs")
+# plt.legend()
+# plt.xlabel("gen")
+# plt.ylabel("proportional change in Vy")
+# plt.savefig(f"outputs/convergence_speed_from_chr1_to_chr23_start0_end50_runs{runs}")
+
+
+
 
 # ====================================================
 
@@ -266,22 +391,3 @@ with Pool(processes) as pool:
 
 
 
-# plt.clf()
-# for address_widlcard in tqdm(addresses[4:]):
-#     ys = np.zeros((runs, length-2))
-#     for i in range(runs):
-#         address = address_widlcard.replace("&", str(i))        
-#         with h5py.File(address, 'r') as hf:
-#             vy = np.array(hf["vy"])
-#             vy_expected = np.array(hf["expected_vy"])            
-#             ve = np.array(hf["ve"])
-#             p = np.array(hf["p"])
-#             ab_cov = np.array(hf["ab_cov"])
-#             plt.plot(range(len(vy)-2),vy[2:], label=f"simulation vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-#             plt.plot(range(len(vy_expected)-2),vy_expected[2:], label=f" expected vb={ab_cov[1,1]}, corr(a,b)={round(ab_cov[0,1]/(np.sqrt(ab_cov[1,1])+ 0.00001),2)}, p={p}")
-
-# plt.title(f"Vy from simulation and derivations for {runs} runs")
-# plt.legend()
-# plt.xlabel("gen")
-# plt.ylabel("Vy")
-# plt.savefig(f"outputs/vy_expected_derivation_from_chr1_to_chr23_start0_end50_runs{runs}")
