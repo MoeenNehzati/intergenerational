@@ -9,6 +9,7 @@ import os
 import h5py
 import logging
 from multiprocessing import Pool
+from pyplink import PyPlink
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -19,6 +20,79 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
+def write_bed(input_address = "outputs/from_chr1_to_chr23_start0_end50_run0_p0-5_ab_corr0-0_vb0-25_length15.hdf5", output_address = None, chunk_size = 100):
+    # for x in `ls outputs/*.hdf5`; do python -c "from pop_sim_recom import write_bed;write_bed('$x')"& done
+    if output_address is None:
+        output_address = input_address[:-5]+"_generation&"
+    hf = h5py.File(input_address, "r")
+    number_of_snps = hf["males"].shape[1]
+    half_pop_size = hf["males"].shape[2]
+    iterations = -(-number_of_snps//chunk_size)
+    for generation in [0,1]:
+        print("for generation", generation)
+        with PyPlink(output_address.replace("&", str(generation)), "w") as pedfile:
+            for chunk_index in tqdm(range(iterations)):
+                male_phased_chunk = np.array(hf["males"][generation,chunk_index*chunk_size:(chunk_index+1)*chunk_size, :, :])
+                male_unphased_chunk = np.sum(male_phased_chunk, 2)
+                female_phased_chunk = np.array(hf["females"][generation,chunk_index*chunk_size:(chunk_index+1)*chunk_size, :, :])
+                female_unphased_chunk = np.sum(female_phased_chunk, 2)                
+                unphased_chunk = np.hstack((male_unphased_chunk, female_unphased_chunk))
+                for genotypes in unphased_chunk:
+                    pedfile.write_genotypes(genotypes)
+
+            # for gender in ["males", "females"]:
+            #     print("for", gender)
+                # for chunk_index in tqdm(range(iterations)):
+                #     phased_chunk = np.array(hf[gender][generation,chunk_index*chunk_size:(chunk_index+1)*chunk_size, :, :])
+                #     unphased_chunk = np.sum(phased_chunk, 2)
+                #     for genotypes in unphased_chunk:
+                #         pedfile.write_genotypes(genotypes)
+
+    columns = [a.decode() for a in hf["bim_columns"][:]]
+    values = hf["bim_values"][:].astype(str) 
+    original_bim = pd.DataFrame(values, columns = columns)
+    splited_alleles = original_bim["allele_ids"].str.split(",", expand = True)
+    original_bim["allele1"] = splited_alleles[0]
+    original_bim["allele2"] = splited_alleles[1]
+    original_bim["base_pair"] = 1
+    output_bim = original_bim[["Chr", "rsid", "coordinate", "base_pair", "allele1", "allele2"]]    
+
+    male_phenotypes = hf["male_phenotypes"][-2:, :]
+    female_phenotypes = hf["female_phenotypes"][-2:, :]
+    female_mother_ranks = hf["female_mother_ranks"][-2:, :]
+    female_father_ranks = hf["female_father_ranks"][-2:, :]
+    male_mother_ranks = hf["male_mother_ranks"][-2:, :]
+    male_father_ranks = hf["male_father_ranks"][-2:, :]
+
+    fam0 = pd.DataFrame([["FID", "IID", "PID", "MID", "SEX", "PHEN"] for i in range(2*half_pop_size)], columns = ["FID", "IID", "PID", "MID", "SEX", "PHEN"])
+    fam1 = pd.DataFrame([["FID", "IID", "PID", "MID", "SEX", "PHEN"] for i in range(2*half_pop_size)], columns = ["FID", "IID", "PID", "MID", "SEX", "PHEN"])
+    base_iid = 1
+    iids = list(range(base_iid, base_iid+2*half_pop_size))
+    base_iid += 2*half_pop_size
+    fam0["IID"] = iids
+    fam0["PID"] = 0
+    fam0["MID"] = 0
+    fam0["SEX"] = [1]*half_pop_size+[2]*half_pop_size
+    fam0["PHEN"] = np.hstack((male_phenotypes[0], female_phenotypes[0]))
+    iids = list(range(base_iid, base_iid+2*half_pop_size))
+    base_iid += 2*half_pop_size
+    fam1["IID"] = iids
+    fam1["PID"] = np.hstack((male_father_ranks[1]+1, female_father_ranks[1]+1))
+    fam1["MID"] = half_pop_size+np.hstack((male_mother_ranks[1]+1, female_mother_ranks[1]+1))
+    fam1["SEX"] = [1]*half_pop_size+[2]*half_pop_size
+    fam1["PHEN"] = np.hstack((male_phenotypes[1], female_phenotypes[1]))
+    fam1["FID"] = fam1["PID"]
+    mothers_in_order = np.argsort(fam1["MID"].unique())
+    fam0["FID"] = np.hstack((fam0["IID"][:half_pop_size], fam1["PID"][mothers_in_order]))
+
+    output_address0 = output_address.replace("&", str(0))
+    output_address1 = output_address.replace("&", str(1))
+    output_bim.to_csv(output_address0+".bim", header=False, sep="\t", index=False)
+    output_bim.to_csv(output_address1+".bim", header=False, sep="\t", index=False)
+    fam0.to_csv(output_address0+".fam", header=False, sep=" ", index=False)
+    fam1.to_csv(output_address1+".fam", header=False, sep=" ", index=False)
+
+    hf.close()
 
 def write_data(data, chr, start, end, gen):
     address = f"/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/cache/loaded_data_from{chr}_to{chr+1}_start{start}_end{end}_gen{gen}.pickle"
@@ -72,7 +146,8 @@ def prepare_data(chr_range, bgen_address = "/disk/genetics4/ukb/alextisyoung/hap
     for chrom in chr_range:
         logging.info("reading chromosome " + str(chrom))
         bgen = read_bgen(bgen_address.replace("~", str(chrom))+".bgen", verbose=False)
-        bgen_bim = bgen["variants"].compute().rename(columns={"chrom":"Chr", "pos":"coordinate"})
+        bgen_bim = bgen["variants"].compute().reset_index()
+        bgen_bim = bgen_bim.rename(columns={"chrom":"Chr", "pos":"coordinate", "index":"base_pair"})
         variants_number = bgen_bim.shape[0]
         this_end = end
         if this_end is None:
