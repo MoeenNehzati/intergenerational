@@ -1,2 +1,14 @@
-out/**
+src/outputs/**
 **/__pycache__/**
+env/**
+**.so
+**.png
+**.pickle
+**.hdf5
+**.bed
+**.bim
+**.fam
+**.csv
+**.html
+**.log
+BOLT/**
