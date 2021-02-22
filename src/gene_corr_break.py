@@ -106,7 +106,7 @@ with Pool(processes=processes) as pool:         # start 4 worker processes
     plt.xlabel("time")
     plt.title(f"Average of genetic covariance and its estimate\n"+param_desc)
     plt.legend()
-    print(out_prefix+"_"+param_desc+".png")
+    print(out_prefix+param_desc+".png")
     plt.savefig(out_prefix+param_desc)
     results = {"values":results,
               "params":{"number_of_the_genes": number_of_the_genes,
@@ -124,5 +124,6 @@ with Pool(processes=processes) as pool:         # start 4 worker processes
                 "description": "Real: average Corr(ag,ag*)\n average (Cov(a@g,y)*Cov(y,y*)*Cov(y*,a@g*))/Var(y)^2",
               }
     with open(out_prefix+param_desc+".pickle", "wb") as f:
-        pickle.dump(result, f)
+        pickle.dump(results, f)
+
 
