@@ -139,7 +139,7 @@ if __name__ == "__main__":
     parser.add_argument('-assort', nargs='+', help='different values of spousal phenotypic correlation', type=float, default = [0., 0.5])
     parser.add_argument('-bgen_address', help='Address of the bgen files. ~ is the wildcard for chromosome number', type=str, default = "/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/chr_~")
     parser.add_argument('-add_derivations', help='Compute derivations and output them', action='store_true')
-    parser.add_argument('-outprefix', help='prefix for outputs', type=str, default="outputs/multi_runs/")
+    parser.add_argument('-outprefix', help='prefix for outputs', type=str, default="")
     args=parser.parse_args()
     start = args.start
     end = args.end
