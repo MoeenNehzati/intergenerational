@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 def compute_generation(index, vg, vy, m, c, a, b, p, ve):
     i = index
+    if i == 2:
+        c=0
+        p=0
+        b=np.zeros(b.shape)
     vg[i] = (1-c)*vg[i-1] + m[i-1]/2 + (2*c-1)*m[i-2]/2
     vy[i] = ve + a@vg[i]@a.T + 2*b@vg[i-1]@b.T + a@(m[i-1] + vg[i-1])@b.T + b@(m[i-1] + vg[i-1])@a.T + 2*b@m[i-1]@b.T
     vy[i] = vy[i].item()
@@ -9,11 +13,8 @@ def compute_generation(index, vg, vy, m, c, a, b, p, ve):
 
 
 def simulate_generations(length, vg0, c, a, b, p, ve):  
-    # vg = [0 for i in range(length+2)]
     vg = np.zeros((length+2, vg0.shape[0], vg0.shape[1]))
-    vy = np.zeros(length+2) #np.array([0. for i in range(length+2)])
-    # vy = [0. for i in range(length+2)]
-    # m = [np.zeros(vg0.shape) for i in range(length+2)]
+    vy = np.zeros(length+2)
     m = np.zeros((length+2, vg0.shape[0], vg0.shape[1]))
     vg[0] = vg0
     vg[1] = vg0

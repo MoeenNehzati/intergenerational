@@ -10,6 +10,11 @@ import h5py
 import logging
 from multiprocessing import Pool
 from pyplink import PyPlink
+import os, psutil
+def print_mem_usage(place):
+    process = psutil.Process(os.getpid())
+    print(f"in {place}: mem usage is", process.memory_info().rss/1000000000)
+
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -20,13 +25,15 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
-def write_bed(input_address = "outputs/from_chr1_to_chr23_start0_end50_run0_p0-5_ab_corr0-0_vb0-25_length15.hdf5", output_address = None, chunk_size = 100):
-    # for x in `ls outputs/*.hdf5`; do python -c "from pop_sim_recom import write_bed;write_bed('$x')"& done
+def write_bed_seg(input_address = "outputs/from_chr1_to_chr23_start0_end50_run0_p0-5_ab_corr0-0_vb0-25_length15.hdf5", output_address = None, chunk_size = 100):
+    # for x in `ls outputs/multi_runs/*.hdf5 | sed -r "s/.+\/(.+)\..+/\1/"`; do python -c "from pop_sim_recom import write_bed_seg;write_bed_seg('outputs/multi_runs/${x}.hdf5')"& done
     if output_address is None:
         output_address = input_address[:-5]+"_generation&"
     hf = h5py.File(input_address, "r")
     number_of_snps = hf["males"].shape[1]
     half_pop_size = hf["males"].shape[2]
+    sons_ibd = np.array(hf["sons_ibd"])
+    daughetrs_ibd = np.array(hf["daughetrs_ibd"])
     iterations = -(-number_of_snps//chunk_size)
     for generation in [0,1]:
         print("for generation", generation)
@@ -48,9 +55,9 @@ def write_bed(input_address = "outputs/from_chr1_to_chr23_start0_end50_run0_p0-5
                 #     for genotypes in unphased_chunk:
                 #         pedfile.write_genotypes(genotypes)
 
-    columns = [a.decode() for a in hf["bim_columns"][:]]
-    values = hf["bim_values"][:].astype(str) 
-    original_bim = pd.DataFrame(values, columns = columns)
+    bim_columns = [a.decode() for a in hf["bim_columns"][:]]
+    bim_values = hf["bim_values"][:].astype(str) 
+    original_bim = pd.DataFrame(bim_values, columns = bim_columns)
     splited_alleles = original_bim["allele_ids"].str.split(",", expand = True)
     original_bim["allele1"] = splited_alleles[0]
     original_bim["allele2"] = splited_alleles[1]
@@ -85,29 +92,36 @@ def write_bed(input_address = "outputs/from_chr1_to_chr23_start0_end50_run0_p0-5
     mothers_in_order = np.argsort(fam1["MID"].unique())
     fam0["FID"] = np.hstack((fam0["IID"][:half_pop_size], fam1["PID"][mothers_in_order]))
 
+    males_fam = fam1[:half_pop_size][["FID", "IID"]].values
+    females_fam = fam1[half_pop_size:][["FID", "IID"]].values
+    rsids = output_bim["rsid"].values
+    males_ibd = np.array([(males_fam[s[0], 0], males_fam[s[0], 1], males_fam[half_pop_size//2+s[0], 0], males_fam[half_pop_size//2+s[0], 1], s[4], s[1], rsids[s[2]], rsids[s[3]], s[3]-s[2]+1) for s in sons_ibd if s[4]!= 0])
+    females_ibd = np.array([(females_fam[d[0], 0], females_fam[d[0], 1], females_fam[half_pop_size//2+d[0], 0], females_fam[half_pop_size//2+d[0], 1], d[4], d[1], rsids[d[2]], rsids[d[3]], d[3]-d[2]+1) for d in daughetrs_ibd if d[4]!= 0])
+    ibd = np.vstack((males_ibd, females_ibd))
+    ibd_pd = pd.DataFrame(data=ibd, columns = ["FID1", "ID1", "FID2", "ID2", "IBDType", "Chr", "StartSNP", "StopSNP", "N_SNP"])
+    
     output_address0 = output_address.replace("&", str(0))
     output_address1 = output_address.replace("&", str(1))
     output_bim.to_csv(output_address0+".bim", header=False, sep="\t", index=False)
     output_bim.to_csv(output_address1+".bim", header=False, sep="\t", index=False)
     fam0.to_csv(output_address0+".fam", header=False, sep=" ", index=False)
     fam1.to_csv(output_address1+".fam", header=False, sep=" ", index=False)
+    ibd_pd.to_csv(output_address1+".segments.gz", index = False, sep="\t")
 
     hf.close()
 
 def write_data(data, chr, start, end, gen):
     address = f"/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/cache/loaded_data_from{chr}_to{chr+1}_start{start}_end{end}_gen{gen}.pickle"
-    logging.info("++++++++++++++++++++++++++++")
-    logging.info(address)
+    logging.info(f"writing data to {address}")
     with open(address, "wb") as f:
         pickle.dump(data, f)
-
 
 def prepare_data(chr_range, bgen_address = "/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/chr_~", start=0, end=None, gen = 0):
     from_chr = min(chr_range)
     to_chr = max(chr_range)
     #TODO fix address
     # if gen!=0:
-    #     loaded_address = f"/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/cache/loaded_data_from{from_chr}_to{to_chr+1}_start{start}_end{end}_gen{gen}.pickle"
+    #     loadaddressed_address = f"/disk/genetics4/ukb/alextisyoung/haplotypes/sim_genotypes/QCed/cache/loaded_data_from{from_chr}_to{to_chr+1}_start{start}_end{end}_gen{gen}.pickle"
     #     if os.path.isfile(loaded_address):
     #         logging.info("cache exists")
     #         with h5py.File(address, 'r') as hf:
@@ -130,7 +144,6 @@ def prepare_data(chr_range, bgen_address = "/disk/genetics4/ukb/alextisyoung/hap
             phased_gts = np.array(hf["phased_gts"])
             map_list = np.array(hf["map_list"]).tolist()
             chrom_lengths = list(hf["chrom_lengths"])
-            # bim = pd.DataFrame(hf["bim"])
             bim_values = np.array(hf["bim_values"])
             bim_columns = np.array(hf["bim_columns"])
             bim = pd.DataFrame(bim_values, columns=bim_columns)
@@ -227,27 +240,77 @@ def get_cms(chrs, poss, maps):
     return cm_for_chrs
 #TODO handle None
 
-def mate(fathers, mothers, map_list, chrom_lengths):
-    recombed_fathers = recombination(fathers, map_list, chrom_lengths)
-    recombed_mothers = recombination(mothers, map_list, chrom_lengths)
-    offsprings = np.stack((recombed_fathers, recombed_mothers), axis=2)
-    return offsprings
+def get_ibd_from_sects(sects_fathers1, sects_mothers1, sects_fathers2, sects_mothers2):
+    number_of_people = len(sects_fathers1)
+    number_of_snps = sects_fathers1[0][-1][1]
+    ibds = []
+    for i in range(number_of_people):
+        f1_counter = 0
+        f2_counter = 0
+        m1_counter = 0
+        m2_counter = 0
+        start = 0
+        end = -1
+        chr_f1, f1_start, f1_end, f1_hap = sects_fathers1[i][f1_counter]
+        chr_f2, f2_start, f2_end, f2_hap = sects_fathers2[i][f2_counter]
+        chr_m1, m1_start, m1_end, m1_hap = sects_mothers1[i][m1_counter]
+        chr_m2, m2_start, m2_end, m2_hap = sects_mothers2[i][m2_counter]                
+        while(start <= number_of_snps):
+            if end == f1_end:
+                f1_counter += 1
+                chr_f1, f1_start, f1_end, f1_hap = sects_fathers1[i][f1_counter]
+            if end == f2_end:
+                f2_counter += 1
+                chr_f2, f2_start, f2_end, f2_hap = sects_fathers2[i][f2_counter]
+            if end == m1_end:
+                m1_counter += 1
+                chr_m1, m1_start, m1_end, m1_hap = sects_mothers1[i][m1_counter]
+            if end == m2_end:
+                m2_counter += 1
+                chr_m2, m2_start, m2_end, m2_hap = sects_mothers2[i][m2_counter]        
+            end = min(f1_end, f2_end, m1_end, m2_end)                                                                                    
+            if chr_f1 == chr_f2 == chr_m1 == chr_m2:
+                ibds.append([i, chr_f1, start, end, int(f1_hap==f2_hap)+int(m1_hap==m2_hap)])
+            else:                
+                print("============")
+                print("individuals" , i)
+                print("counters", f1_counter, f2_counter, m1_counter, m2_counter)
+                print(chr_f1, f1_start, f1_end, f1_hap)
+                print(chr_f2, f2_start, f2_end, f2_hap)
+                print(chr_m1, m1_start, m1_end, m1_hap)
+                print(chr_m2, m2_start, m2_end, m2_hap)
+                raise Exception("Some Inferred IBDS Intervals contain SNPS from two chromosomes")
+            start = end + 1
+    return np.array(ibds)
+            
 
-def recombination(population, map_list, chrom_lengths, chunks = 100, processes = 10):
-    with Pool(processes) as p:
+def mate(fathers, mothers, map_list, chrom_lengths, threads):
+    recombed_fathers, sects_fathers = recombination(fathers, map_list, chrom_lengths, threads=threads)
+    recombed_mothers, sects_mothers = recombination(mothers, map_list, chrom_lengths, threads=threads)
+    offsprings = np.stack((recombed_fathers, recombed_mothers), axis=2)
+    return offsprings, sects_fathers, sects_mothers
+
+def recombination(population, map_list, chrom_lengths, chunks = 100, threads = 10):
+    with Pool(threads) as p:
         pop_size = population.shape[1]
         bin_size = (pop_size-1)//chunks+1 
-        pop_chunks = [population[:, i*bin_size: min((i+1)*bin_size, pop_size), :] for i in range(chunks)]
-        args = [(pop_chunks[i], map_list, chrom_lengths) for i in range(chunks)]
+        pop_chunks = [population[:, i*bin_size: min((i+1)*bin_size, pop_size), :] for i in range(chunks) if i*bin_size<=pop_size]
+        args = [(chunk, map_list, chrom_lengths) for chunk in pop_chunks]
         results = p.starmap(recombination_chunk, args)
-    assembled_pop = np.hstack(results)
-    return assembled_pop
+
+    assembled_pop = np.hstack([r[0] for r in results])
+    assembled_sects = []
+    for r in results:
+        assembled_sects += r[1]
+    return assembled_pop, assembled_sects
 
 def recombination_chunk(population, map_list, chrom_lengths):
     #need 22 chrom length
+    np.random.seed()
     snps, individuals = population.shape[:2]
     recombs = np.zeros((snps, individuals))
     counters = [0 for i in range(individuals)]
+    sects = [[] for i in range(individuals)]
     for chr in range(len(chrom_lengths)):
         length = chrom_lengths[chr]
         length_in_centimorgans = np.max(map_list[chr])
@@ -257,42 +320,25 @@ def recombination_chunk(population, map_list, chrom_lengths):
         intervals = np.hstack((intervals, np.array([[1.1] for i in range(individuals)])))
         points = np.cumsum(intervals, axis=1)
         points = points*length_in_centimorgans
-        # points = points.astype(int)        
+        all_splits = (np.random.random(individuals)>0.5).astype(int)        
         for i in range(individuals):        
             counter = counters[i]
-            splits = int(np.random.random()>0.5)
+            splits = all_splits[i]
+            last_counter = counter
+            last_split = splits
             for k in range(length):
                 while map_list[chr][k]>points[i, splits]:
                     splits += 1
+                if (splits%2) != (last_split%2) and last_counter<counter:
+                    sects[i].append([chr+1, last_counter, counter-1, last_split%2])
+                    last_counter = counter
+                    last_split = splits
                 recombs[counter,i] = population[counter, i, splits%2]
                 counter+=1
+            sects[i].append([chr+1, last_counter, counter-1, last_split%2])
             counters[i] = counter
-    return recombs
+    return recombs, sects
 
-
-
-def recombination_shadow(population, map_list, chrom_lengths):
-    snps, individuals = population.shape[:2]
-    length_in_centimorgans = np.max(map_list)
-    length_in_morgans = int(length_in_centimorgans/100)+1
-    sample_size = int(4*length_in_morgans)
-    intervals = np.random.exponential(1/length_in_morgans, (individuals, sample_size))
-    intervals = np.hstack((intervals, np.array([[1] for i in range(individuals)])))
-    points = np.cumsum(intervals, axis=1)
-    points = points*length_in_centimorgans
-    points = points.astype(int)
-    recombs = np.zeros((snps, individuals))
-    for i in range(individuals):        
-        counter = 0
-        splits = 0
-        for length in chrom_lengths:
-            mode = np.random.random()>0.5
-            for k in range(length):
-                while map_list[counter]>points[i, splits]:
-                    splits += 1
-                recombs[counter,i] = population[counter, i, (mode+splits)%2]
-                counter+=1
-    return recombs
 
 def simulate(length,
             causal_mask,
@@ -303,7 +349,8 @@ def simulate(length,
             b,
             p,
             ve,
-            latest_mem,            
+            latest_mem,   
+            threads,         
             statistics_function = None,
             statistics = {},
             force_p=True,            
@@ -370,11 +417,17 @@ def simulate(length,
             p = orriginal_p
         else:
             p = 0.000001
+        print_mem_usage("initial")
         if i >= latest_mem:
             males[i-latest_mem] = None
             females[i-latest_mem] = None
             males_sum[i-latest_mem] = None
             females_sum[i-latest_mem] = None
+            son1 = None
+            son2 = None
+            daughter1 = None
+            daughter2 = None
+        print("after releasing")
         logging.info(f"generation {i} start mating")
         delta = 0.9
         dif = 1
@@ -391,10 +444,6 @@ def simulate(length,
             sorted_to_initial_ranks_male = np.argsort(noisy_father_phenotype)
             sorted_to_initial_ranks_female = np.argsort(noisy_mother_phenotype)
             logging.info(f"selecting ...")
-            father = father[:, sorted_to_initial_ranks_male,:]
-            mother = mother[:, sorted_to_initial_ranks_female,:]
-            father_sum = males_sum[i-1][:, sorted_to_initial_ranks_male]
-            mother_sum = females_sum[i-1][:, sorted_to_initial_ranks_female]
             father_phenotype_sorted = father_phenotype[sorted_to_initial_ranks_male]
             mother_phenotype_sorted = mother_phenotype[sorted_to_initial_ranks_female]
             logging.info(f"computing corr ...")
@@ -418,25 +467,30 @@ def simulate(length,
             sorted_to_initial_ranks_male = np.argsort(noisy_father_phenotype)
             sorted_to_initial_ranks_female = np.argsort(noisy_mother_phenotype)
             logging.info(f"selecting ...")
-            father = father[:, sorted_to_initial_ranks_male, :]
-            mother = mother[:, sorted_to_initial_ranks_female, :]
-            father_sum = males_sum[i-1][:, sorted_to_initial_ranks_male]
-            mother_sum = females_sum[i-1][:, sorted_to_initial_ranks_female]
             father_phenotype_sorted = father_phenotype[sorted_to_initial_ranks_male]
             mother_phenotype_sorted = mother_phenotype[sorted_to_initial_ranks_female]
             logging.info(f"computing corr ...")
             temp_cor = np.corrcoef(father_phenotype_sorted, mother_phenotype_sorted)
             dif = temp_cor[0,1]-p
             logging.info(f"computing corr done")
+        father = father[:, sorted_to_initial_ranks_male, :]
+        mother = mother[:, sorted_to_initial_ranks_female, :]
+        logging.info(f"selecting1 ...")
+        father_sum = males_sum[i-1][:, sorted_to_initial_ranks_male]
+        mother_sum = females_sum[i-1][:, sorted_to_initial_ranks_female]
+        logging.info(f"selecting2 ...")
+
         logging.info(f"generation {i} sorted")                
         deltas[i] = delta
         corrs[i-1] = temp_cor[0,1]
         # corrs_inbreeding[i-1] = np.corrcoef(np.sum(father[causal_mask,:,:], axis=2).reshape((1, -1)), np.sum(mother[causal_mask,:,:], axis=2).reshape((1, -1)))[0,1]
         # corrs_causal[i-1] = np.corrcoef(np.sum(father[causal_mask,:,:], axis=2).reshape((1, -1)), np.sum(mother[causal_mask,:,:], axis=2).reshape((1, -1)))[0,1]
         logging.info(f"figuring parents")
+        print_mem_usage("figuring parents")
         orders = np.random.permutation(range(father.shape[1]))
         son_fams = orders[[i%2==0 for i in range(len(orders))]]
         daughter_fams = orders[[i%2!=0 for i in range(len(orders))]]
+        print_mem_usage("before sums")
         son_fathers = father[:, son_fams, :]
         son_fathers_sum = father_sum[:, son_fams]
         son_mothers = mother[:, son_fams, :]
@@ -445,16 +499,24 @@ def simulate(length,
         daughter_fathers_sum = father_sum[:, daughter_fams]
         daughter_mothers = mother[:, daughter_fams, :]
         daughter_mothers_sum = mother_sum[:, daughter_fams,]
+        print_mem_usage("after sums")
         logging.info(f"mate ...")
-        son1 = mate(son_fathers, son_mothers, map_list, chrom_lengths)
-        son2 = mate(son_fathers, son_mothers, map_list, chrom_lengths)
-        daughter1 = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths)
-        daughter2 = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths)
+        son1, son1_fathers, son1_mothers = mate(son_fathers, son_mothers, map_list, chrom_lengths, threads)
+        print_mem_usage("after mate1")
+        son2, son2_fathers, son2_mothers = mate(son_fathers, son_mothers, map_list, chrom_lengths, threads)
+        print_mem_usage("after mate2")
+        daughter1, daughter1_fathers, daughter1_mothers = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths, threads)
+        print_mem_usage("after mate3")
+        daughter2, daughter2_fathers, daughter2_mothers = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths, threads)
+        print_mem_usage("after mate4")
         logging.info(f"mating done")
         males[i] = np.hstack((son1, son2))
+        print_mem_usage("after stacking1")
         females[i] = np.hstack((daughter1, daughter2))
+        print_mem_usage("after stacking1")
         males_sum[i] = np.sum(males[i], 2)
         females_sum[i] = np.sum(females[i], 2)
+        print_mem_usage("after sums")
         male_parent_sorted_ranks = np.hstack((son_fams, son_fams))
         male_father_ranks[i] = np.array([sorted_to_initial_ranks_male[male_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         male_mother_ranks[i] = np.array([sorted_to_initial_ranks_female[male_parent_sorted_ranks[j]] for j in range(pop_size//2)])
@@ -463,6 +525,7 @@ def simulate(length,
         female_father_ranks[i] = np.array([sorted_to_initial_ranks_male[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         female_mother_ranks[i] = np.array([sorted_to_initial_ranks_female[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
         logging.info(f"ranks computed")
+        print_mem_usage("ranks computed")
         if statistics_function is not None:
             statistics_function(i, data, statistics)
         logging.info(f"male direct ...")
@@ -503,9 +566,18 @@ def simulate(length,
         cov_parental_direct_indirect[i] = np.cov(np.hstack((father_direct, mother_direct)), np.hstack((mother_indirect, father_indirect)))[0,1]
         logging.info(f"computing parental direct indirect done")
         logging.info(f"direct indirect statistics done")
+        print_mem_usage("direct indirect statistics done")
 
-    
-    return {"vy":vy, 
+    sons_ibd = get_ibd_from_sects(son1_fathers, son1_mothers, son2_fathers, son2_mothers)
+    daughetrs_ibd = get_ibd_from_sects(daughter1_fathers, daughter1_mothers, daughter2_fathers, daughter2_mothers)
+    logging.info(f"last generations ibd computed")
+    males = males[-latest_mem:]
+    females = females[-latest_mem:]
+    for i in range(latest_mem):
+        males[i] = males[i].astype(np.int8)
+        females[i] = females[i].astype(np.int8)        
+    logging.info(f"trim males and females")
+    results = {"vy":vy, 
             "corrs":corrs,
             "corrs_causal":corrs_causal,
             "corrs_inbreeding":corrs_inbreeding,
@@ -516,8 +588,8 @@ def simulate(length,
             "female_direct":female_direct,
             "female_indirect":female_indirect,
             "deltas":deltas,
-            "males":np.array([gen.tolist() for gen in males if gen is not None]),
-            "females":np.array([gen.tolist() for gen in females if gen is not None]),
+            "males":males,
+            "females":females,
             "female_father_ranks": female_father_ranks,
             "female_mother_ranks": female_mother_ranks,
             "male_father_ranks": male_father_ranks,
@@ -529,192 +601,8 @@ def simulate(length,
             "cov_parental_direct": cov_parental_direct,
             "cov_parental_indirect": cov_parental_indirect,
             "cov_parental_direct_indirect": cov_parental_direct_indirect,
+            "sons_ibd": sons_ibd,
+            "daughetrs_ibd": daughetrs_ibd,
         }
-
-
-# def simulate_batch(
-#             length,
-#             causal_genes,
-#             chr_range,
-#             pop_size, number_of_genes,
-#             a,
-#             b,
-#             p,
-#             ve,
-#             latest_mem,            
-#             statistics_function = None,
-#             statistics = {},
-#             force_p=True,            
-#             ):
-
-#     if latest_mem is None:
-#         latest_mem = length    
-    
-#     female_father_ranks = np.zeros((length, pop_size//2)).astype(int)
-#     female_mother_ranks = np.zeros((length, pop_size//2)).astype(int)
-#     male_father_ranks = np.zeros((length, pop_size//2)).astype(int)
-#     male_mother_ranks = np.zeros((length, pop_size//2)).astype(int)
-#     male_phenotypes = np.array([[None]*(pop_size//2)]*length, dtype=float)
-#     female_phenotypes = np.array([[None]*(pop_size//2)]*length, dtype=float)
-#     male_direct = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     male_indirect = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     female_direct = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     female_indirect = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     male_indirect_buffer = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     female_indirect_buffer = np.array([[0]*(pop_size//2)]*length, dtype=float)
-#     cov_parental_direct = np.array([None]*length, dtype=float)
-#     cov_parental_indirect = np.array([None]*length, dtype=float)
-#     cov_parental_direct_indirect = np.array([None]*length, dtype=float)
-#     vy = np.array([None]*length, dtype=float)
-#     v_direct = np.array([None]*length, dtype=float)
-#     v_indirect = np.array([None]*length, dtype=float)
-#     cov_direct_indirect = np.array([None]*length, dtype=float)
-#     heritablity = np.array([None]*length, dtype=float)
-#     corrs = np.array([None]*length, dtype=float)
-#     corrs_original = np.array([None]*length, dtype=float)
-#     corrs_inbreeding = np.array([None]*length, dtype=float)
-#     corrs_causal = np.array([None]*length, dtype=float)
-#     deltas = np.array([None]*length, dtype=float)
-#     #TODO figure this out
-#     size = 2
-#     for chr in chr_range:
-#         phased_gts, map_list, chrom_lengths = prepare_data([chr], start=0, end=50)
-#         males = phased_gts[:, :pop_size//2, :].astype(float)
-#         females = phased_gts[:, pop_size//2:, :].astype(float)
-#         male_direct[0, :] += (a[:, (chr-1)*size: chr*size]@np.sum(males,2)[:size, :])[0]
-#         female_direct[0, :] += (a[:, (chr-1)*size: chr*size]@np.sum(females,2)[:size, :])[0]
-#         # write indirect of everyone on the next gen
-#         male_indirect_buffer[0, :] += (b[:, (chr-1)*size: chr*size]@np.sum(males,2)[:size, :])[0]
-#         female_indirect_buffer[0, :] += (b[:, (chr-1)*size: chr*size]@np.sum(females,2)[:size, :])[0]
-    
-
-        
-#     male_phenotypes[0, :] = male_direct[0, :] + np.random. normal(0, sqrt(ve), (1, pop_size//2))
-#     female_phenotypes[0, :] = female_direct[0, :] + np.random.normal(0, sqrt(ve), (1, pop_size//2))
-#     vy[0] = np.var(np.hstack((male_phenotypes[0, :], female_phenotypes[0, :])))
-#     v_direct[0] = np.var(np.hstack((male_direct[0, :], female_direct[0, :])))
-#     heritablity[0] = v_direct[0]/vy[0]
-
-#     for i in tqdm(range(1, length)):
-#         delta = 0.9
-#         dif = 1
-#         while dif>=0:
-#             delta += 0.1
-#             father_phenotype = male_phenotypes[i-1, :]
-#             mother_phenotype = female_phenotypes[i-1, :]
-#             noisy_father_phenotype = father_phenotype + np.random.normal(0, sqrt((1/p - 1)*vy[i-1]*delta), size=father_phenotype.shape)
-#             noisy_mother_phenotype = mother_phenotype + np.random.normal(0, sqrt((1/p - 1)*vy[i-1]*delta), size=mother_phenotype.shape)
-#             noisy_father_phenotype_ranks = np.argsort(noisy_father_phenotype)
-#             noisy_mother_phenotype_ranks = np.argsort(noisy_mother_phenotype)
-#             father_phenotype_sorted = father_phenotype[noisy_father_phenotype_ranks]
-#             mother_phenotype_sorted = mother_phenotype[noisy_mother_phenotype_ranks]
-#             temp_cor = np.corrcoef(father_phenotype_sorted, mother_phenotype_sorted)
-#             dif = temp_cor[0,1]-p
-#             if delta == 1:
-#                 corrs_original[i] = temp_cor[0,1]
-#             if not force_p:
-#                 break
-#         while dif<0 and force_p:
-#             delta -= 0.01
-#             father_phenotype = male_phenotypes[i-1, :]
-#             mother_phenotype = female_phenotypes[i-1, :]
-#             noisy_father_phenotype = father_phenotype + np.random.normal(0, sqrt((1/p - 1)*vy[i-1]*delta), size=father_phenotype.shape)
-#             noisy_mother_phenotype = mother_phenotype + np.random.normal(0, sqrt((1/p - 1)*vy[i-1]*delta), size=mother_phenotype.shape)
-#             noisy_father_phenotype_ranks = np.argsort(noisy_father_phenotype)
-#             noisy_mother_phenotype_ranks = np.argsort(noisy_mother_phenotype)
-#             father_phenotype_sorted = father_phenotype[noisy_father_phenotype_ranks]
-#             mother_phenotype_sorted = mother_phenotype[noisy_mother_phenotype_ranks]
-#             temp_cor = np.corrcoef(father_phenotype_sorted, mother_phenotype_sorted)
-#             dif = temp_cor[0,1]-p
-
-
-
-#         sorted_to_initial_ranks_male = np.argsort(noisy_father_phenotype)
-#         sorted_to_initial_ranks_female = np.argsort(noisy_mother_phenotype)
-#         deltas[i] = delta
-#         corrs[i-1] = temp_cor[0,1]
-#         # corrs_inbreeding[i-1] = np.corrcoef(np.sum(father[causal_genes:,:,:], axis=2).reshape((1, -1)), np.sum(mother[causal_genes:,:,:], axis=2).reshape((1, -1)))[0,1]
-#         # corrs_causal[i-1] = np.corrcoef(np.sum(father[:causal_genes,:,:], axis=2).reshape((1, -1)), np.sum(mother[:causal_genes,:,:], axis=2).reshape((1, -1)))[0,1]
-    
-#         orders = np.random.permutation(range(pop_size//2))
-#         son_fams = orders[[i%2==0 for i in range(len(orders))]]
-#         daughter_fams = orders[[i%2!=0 for i in range(len(orders))]]
-#         male_parent_sorted_ranks = np.hstack((son_fams, son_fams))
-#         male_father_ranks = np.array([sorted_to_initial_ranks_male[male_parent_sorted_ranks[j]] for j in range(pop_size//2)])
-#         male_mother_ranks = np.array([sorted_to_initial_ranks_female[male_parent_sorted_ranks[j]] for j in range(pop_size//2)])
-#         female_parent_sorted_ranks = np.hstack((daughter_fams, daughter_fams))
-#         female_father_ranks = np.array([sorted_to_initial_ranks_male[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
-#         female_mother_ranks = np.array([sorted_to_initial_ranks_female[female_parent_sorted_ranks[j]] for j in range(pop_size//2)])
-
-#         for chr in chr_range:
-#             start = 0
-#             end = 2
-#             size = end-start
-#             phased_gts, map_list, chrom_lengths = prepare_data([chr], start=start, end=end, gen=i-1)
-#             males = phased_gts[:, :pop_size, :].astype(float)
-#             females = phased_gts[:, :pop_size, :].astype(float)
-#             fathers = males[:, noisy_father_phenotype_ranks]
-#             mothers = females[:, noisy_mother_phenotype_ranks]
-#             son_fathers = fathers[:, son_fams, :]
-#             son_mothers = mothers[:, son_fams, :]
-#             daughter_fathers = fathers[:, daughter_fams, :]
-#             daughter_mothers = mothers[:, daughter_fams, :]
-#             son1 = mate(son_fathers, son_mothers, map_list, chrom_lengths)
-#             son2 = mate(son_fathers, son_mothers, map_list, chrom_lengths)
-#             daughter1 = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths)
-#             daughter2 = mate(daughter_fathers, daughter_mothers, map_list, chrom_lengths)
-#             sons = np.hstack((son1, son2))
-#             daughters = np.hstack((daughter1, daughter2))
-#             next_gen = np.hstack((sons, daughters))
-#             write_data((next_gen, map_list, chrom_lengths), chr, start, end, i)
-        
-#             male_direct[i, :] += (a[:, (chr-1)*size: chr*size]@np.sum(sons,2)[:size, :])[0]
-#             female_direct[i, :] += (a[:, (chr-1)*size: chr*size]@np.sum(daughters,2)[:size, :])[0]
-#             female_indirect[i, :] = male_indirect_buffer[i-1, female_father_ranks]+female_indirect_buffer[i-1, female_mother_ranks]
-#             male_indirect[i, :] = male_indirect_buffer[i-1, male_father_ranks]+female_indirect_buffer[i-1, male_mother_ranks]
-           
-#             male_indirect_buffer[1, :] += (b[:, (chr-1)*size: chr*size]@np.sum(sons,2)[:size, :])[0]
-#             male_indirect_buffer[1, :] += (b[:, (chr-1)*size: chr*size]@np.sum(daughters,2)[:size, :])[0]
-
-#         male_phenotypes[i, :] = male_direct[i, :] + male_indirect[i, :] + np.random. normal(0, sqrt(ve), (1, pop_size//2))
-#         female_phenotypes[i, :] = female_direct[i, :] + female_indirect[i, :] + np.random.normal(0, sqrt(ve), (1, pop_size//2))
-#         vy[i] = np.var(np.hstack((male_phenotypes[i, :], female_phenotypes[i, :])))
-#         direct_indirect_cov_mat = np.cov(np.hstack((male_direct[i, :], female_direct[i, :])).flatten(), np.hstack((male_indirect[i, :], female_indirect[i, :])).flatten())
-#         v_direct[i] = direct_indirect_cov_mat[0,0]
-#         v_indirect[i] = direct_indirect_cov_mat[1,1]
-#         cov_direct_indirect[i] = direct_indirect_cov_mat[0, 1]
-#         heritablity[i] = v_direct[i]/vy[i]
-#         father_direct = np.hstack((male_direct[i-1, female_father_ranks[i]], male_direct[i-1, male_father_ranks[i]]))
-#         mother_direct = np.hstack((female_direct[i-1, female_mother_ranks[i]], female_direct[i-1, male_mother_ranks[i]]))
-#         father_indirect = np.hstack((male_indirect[i-1, female_father_ranks[i]], male_indirect[i-1, male_father_ranks[i]]))
-#         mother_indirect = np.hstack((female_indirect[i-1, female_mother_ranks[i]], female_indirect[i-1, male_mother_ranks[i]]))
-#         cov_parental_direct[i] = np.cov(father_direct, mother_direct)[0,1]
-#         cov_parental_indirect[i] = np.cov(father_indirect, mother_direct)[0,1]
-#         cov_parental_direct_indirect[i] = np.cov(np.hstack((father_direct, mother_direct)), np.hstack((mother_indirect, father_indirect)))[0,1]
-
-    
-#     return {"vy":vy, 
-#             # "corrs":corrs,
-#             # "corrs_causal":corrs_causal,
-#             # "corrs_inbreeding":corrs_inbreeding,
-#             "male_phenotypes":male_phenotypes,
-#             "female_phenotypes":female_phenotypes,
-#             "male_direct":male_direct,
-#             "male_indirect":male_indirect,
-#             "female_direct":female_direct,
-#             "female_indirect":female_indirect,
-#             "deltas":deltas,
-#             # "males":np.array([gen.tolist() for gen in males if gen is not None]),
-#             # "females":np.array([gen.tolist() for gen in females if gen is not None]),
-#             "female_father_ranks": female_father_ranks,
-#             "female_mother_ranks": female_mother_ranks,
-#             "male_father_ranks": male_father_ranks,
-#             "male_mother_ranks": male_mother_ranks,
-#             "v_direct": v_direct,
-#             "v_indirect": v_indirect,
-#             "cov_direct_indirect": cov_direct_indirect,
-#             "heritablity": heritablity,
-#             "cov_parental_direct": cov_parental_direct,
-#             "cov_parental_indirect": cov_parental_indirect,
-#             "cov_parental_direct_indirect": cov_parental_direct_indirect,
-#         }
+    logging.info("results created")
+    return results
