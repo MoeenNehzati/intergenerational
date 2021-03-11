@@ -209,10 +209,10 @@ if __name__ == "__main__":
 
     if processes>1:
         with MyPool(processes) as pool:
-            args = [(cov, length, causal_genes, phased_gts, map_list, chrom_lengths, p, ve, mem, threads, run, bim, outprefix, f"from_chr{from_chr}_to_chr{to_chr}_popsize{pop_size}_start{start}_end{end}_run{run}_p{round(p, 2)}_ab_corr{round(cov[0][1]/np.sqrt(cov[1][1]+0.000001), 2)}_vb{round(cov[1][1], 2)}_length{length}".replace(".","-"), add_derivations) for cov, p, run in itertools.product(covs, ps, range(runs))]
+            args = [(cov, length, causal_genes, phased_gts, map_list, chrom_lengths, p, ve, mem, threads, run, bim, outprefix, f"from_chr{from_chr}_to_chr{to_chr}_popsize{pop_size}_start{start}_end{end}_run{run}_p{round(p, 2)}_ab_corr{round(cov[0][1]/np.sqrt(cov[1][1]+0.000001), 2)}_vb{round(cov[1][1], 2)}_length{length}".replace(".","-"), True, add_derivations) for cov, p, run in itertools.product(covs, ps, range(runs))]
             pool.starmap(f, args)
     else:
-        args = [(cov, length, causal_genes, phased_gts, map_list, chrom_lengths, p, ve, mem, threads, run, bim, outprefix, f"from_chr{from_chr}_to_chr{to_chr}_popsize{pop_size}_start{start}_end{end}_run{run}_p{round(p, 2)}_ab_corr{round(cov[0][1]/np.sqrt(cov[1][1]+0.000001), 2)}_vb{round(cov[1][1], 2)}_length{length}".replace(".","-"), add_derivations) for cov, p, run in itertools.product(covs, ps, range(runs))]
+        args = [(cov, length, causal_genes, phased_gts, map_list, chrom_lengths, p, ve, mem, threads, run, bim, outprefix, f"from_chr{from_chr}_to_chr{to_chr}_popsize{pop_size}_start{start}_end{end}_run{run}_p{round(p, 2)}_ab_corr{round(cov[0][1]/np.sqrt(cov[1][1]+0.000001), 2)}_vb{round(cov[1][1], 2)}_length{length}".replace(".","-"), True, add_derivations) for cov, p, run in itertools.product(covs, ps, range(runs))]
         for arg in args:
             f(*arg)
 
