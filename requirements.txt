@@ -9,7 +9,7 @@ chardet==3.0.4
 cloudpickle==1.6.0
 cycler==0.10.0
 Cython==0.29.20
-dask==2.30.0
+dask==2021.10.0
 fsspec==0.8.4
 h5py==2.10.0
 idna==2.10
